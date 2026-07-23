@@ -44,9 +44,27 @@ function decodeHtml(s) {
     .replace(/&gt;/g, '>');
 }
 
+async function fetchWithRetry(url, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      lastErr = new Error(`RSS fetch failed: ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (i < attempts - 1) {
+      const delay = 2000 * 2 ** i;
+      console.log(`RSS attempt ${i + 1}/${attempts} failed (${lastErr.message}), retry in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 async function fetchRSS() {
-  const res = await fetch(RSS_URL);
-  if (!res.ok) throw new Error(`RSS fetch failed: ${res.status}`);
+  const res = await fetchWithRetry(RSS_URL);
   const xml = await res.text();
   const entries = [];
   const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
